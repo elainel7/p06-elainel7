@@ -277,6 +277,13 @@ class Engine(BaseEngine):
                     else None
                 )
                 self.image = self.image.quantize(method=quantize_method)
+                # Quantize keeps palette alpha but not the transparency
+                # index, so GIF output would come back opaque.
+                transparent_index = self._fully_transparent_index(
+                    self.image
+                )
+                if transparent_index is not None:
+                    self.image.info["transparency"] = transparent_index
 
         ext = requested_extension or self.get_default_extension()
 
@@ -522,6 +529,19 @@ class Engine(BaseEngine):
             )
 
         return has_transparency
+
+    @staticmethod
+    def _fully_transparent_index(image):
+        # Index of the first palette entry with alpha 0, or None.
+        if image.mode != "P":
+            return None
+        palette = image.getpalette("RGBA")
+        if not palette:
+            return None
+        for index in range(len(palette) // 4):
+            if palette[index * 4 + 3] == 0:
+                return index
+        return None
 
     def avif_enabled(self):
         return HAVE_AVIF
